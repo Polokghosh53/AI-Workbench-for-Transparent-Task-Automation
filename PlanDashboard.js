@@ -14,17 +14,17 @@ function PlanDashboard() {
 
   const fetchPlans = async () => {
     const res = await axios.get("/plans", {
-      headers: { Authorization: "Bearer demo" }
+      headers: { Authorization: "Bearer demo" },
     });
     setPlans(res.data);
   };
 
   const runPlan = async () => {
-    const res = await axios.post("/run-plan/", {
-      query: input, to: email
-    }, {
-      headers: { Authorization: "Bearer demo" }
-    });
+    const res = await axios.post(
+      "/run-plan/",
+      { query: input, to: email },
+      { headers: { Authorization: "Bearer demo" } }
+    );
     setResults(res.data.results);
     await fetchPlans();
   };
@@ -35,18 +35,20 @@ function PlanDashboard() {
       <input
         placeholder="Describe your task"
         value={input}
-        onChange={e => setInput(e.target.value)}
+        onChange={(e) => setInput(e.target.value)}
       />
       <input
         placeholder="Recipient Email"
         value={email}
-        onChange={e => setEmail(e.target.value)}
+        onChange={(e) => setEmail(e.target.value)}
       />
       <button onClick={runPlan}>Run</button>
+
       {results && <AuditTrail results={results} />}
+
       <h2>Past Plans</h2>
       <ul>
-        {plans.map(plan => (
+        {plans.map((plan) => (
           <li key={plan.plan.id}>
             {plan.plan.id}
             <AuditTrail results={plan.results} />

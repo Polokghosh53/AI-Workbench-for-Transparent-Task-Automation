@@ -4,7 +4,10 @@
   "description": "",
   "main": "App.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node_modules/.bin/react-scripts start",
+    "build": "node_modules/.bin/react-scripts build",
+    "test": "node_modules/.bin/react-scripts test",
+    "eject": "node_modules/.bin/react-scripts eject"
   },
   "repository": {
     "type": "git",
@@ -12,6 +15,9 @@
   },
   "private": true,
   "dependencies": {
-    "axios": "^1.11.0"
+    "axios": "^1.11.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-scripts": "5.0.1"
   }
 }

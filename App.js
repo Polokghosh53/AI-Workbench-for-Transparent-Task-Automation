@@ -1,5 +1,5 @@
 import React from "react";
-import PlanDashboard from "PlanDashboard";
+import PlanDashboard from "./PlanDashboard";
 
 function App() {
   return (
