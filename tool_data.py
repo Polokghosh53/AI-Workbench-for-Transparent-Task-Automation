@@ -1,4 +1,4 @@
-def fetch_and_summarize_data(source):
+def fetch_and_summarize_data(source=None):
     # Connect to a DB or use a mockup for demo
     data = [
         {"date": "2025-08-19", "sales": 1200},
