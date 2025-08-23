@@ -30,8 +30,9 @@ final_output_summarizer = FinalOutputSummarizer(config, agent_memory=None)
 
 class ExecutionState:
     """Custom execution state tracking results by output ID."""
-    def __init__(self, plan: Plan):
+    def __init__(self, plan: Plan, user=None):
         self.plan = plan
+        self.user = user
         self.results = []  # Stores dicts with keys: output and data
 
     def add_result(self, output_id, data):
@@ -66,8 +67,8 @@ async def run_plan(request, user):
 
     plan = plan_builder.build()
 
-    # Initialize custom state tracker
-    state = ExecutionState(plan)
+    # Initialize custom state tracker with current user for ownership filtering
+    state = ExecutionState(plan, user=user)
 
     # Execute each step
     for step in plan.steps:
