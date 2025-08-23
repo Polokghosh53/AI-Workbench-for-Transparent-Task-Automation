@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 from portia.plan import PlanBuilder
 from portia.plan import Plan
 from portia.execution_agents.utils.final_output_summarizer import FinalOutputSummarizer
@@ -5,9 +7,23 @@ from portia.config import Config
 from db import save_plan, get_plan_by_id, list_all_plans
 from tool_email import send_email
 from tool_data import fetch_and_summarize_data
+from portia import LLMProvider
 
 # Initialize Portia Config (can be customized)
-config = Config()
+# Load environment variables from .env file
+load_dotenv()
+
+# Get API keys from environment variables
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+PORTIA_API_KEY = os.getenv('PORTIA_API_KEY')
+
+# Initialize Portia Config with API keys and preferred LLM provider
+config = Config.from_default(
+    # Choose your preferred LLM provider (uncomment one)
+    llm_provider=LLMProvider.OPENAI,  # Default provider
+    default_model="openai/gpt-4.1",
+    openai_api_key=OPENAI_API_KEY,
+)
 
 # Since portia.memory.AgentMemory is not used, pass None or remove as needed
 final_output_summarizer = FinalOutputSummarizer(config, agent_memory=None)
