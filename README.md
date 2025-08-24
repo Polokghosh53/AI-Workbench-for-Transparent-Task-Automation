@@ -290,7 +290,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Portia AI Documentation**: https://docs.portialabs.ai/
 - **Portia GitHub**: https://github.com/portialabs/portia
 - **Project Repository**: [Add your GitHub URL here]
-- **Live Demo**: [Add demo URL if available]
+- **Live Demo**: [AI Workbench](https://youtu.be/GyqBx99XOrA)
 
 ## Contributors Involved
 Users itself 😊, OpenAI, Perplexity AI, & Cursor
