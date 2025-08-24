@@ -9,3 +9,4 @@ openpyxl
 python-docx
 python-multipart
 portia-sdk-python
+# Note: portia-sdk-python installs the 'portia' module

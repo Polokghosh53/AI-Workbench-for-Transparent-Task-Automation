@@ -5,12 +5,14 @@ from db import save_plan, get_plan_by_id, list_all_plans
 from tool_email import send_email
 from tool_data import fetch_and_summarize_data
 
+# Import models first
+from models import Plan, SimpleStep
+
 # Optional Portia imports with graceful fallback
 try:
     from portia import PlanBuilder, Plan as PortiaPlan, Config, LLMProvider
     PORTIA_AVAILABLE = True
 except Exception:
-    from models import Plan  # fallback Plan model
     PORTIA_AVAILABLE = False
 
     class PortiaFinalOutputSummarizer:  # type: ignore
@@ -20,13 +22,6 @@ except Exception:
         def create_summary(self, plan, plan_run):
             # Basic fallback summary
             return f"Plan {getattr(plan, 'id', 'unknown')} executed with {len(getattr(plan_run, 'results', []))} results."
-
-    class SimpleStep:
-        def __init__(self, task, tool_id, output, inputs=None):
-            self.task = task
-            self.tool_id = tool_id
-            self.output = output
-            self.inputs = inputs or []
 
 # Initialize Portia Config (can be customized)
 # Load environment variables from .env file

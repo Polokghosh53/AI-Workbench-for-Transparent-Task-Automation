@@ -93,7 +93,8 @@ async def get_supported_formats():
 async def generate_plan_endpoint(request: dict, user=Depends(get_current_user)):
     """Generate a structured plan using Portia's planning system"""
     try:
-        from agent_manager import PlanBuilder, Plan, SimpleStep
+        from agent_manager import PlanBuilder
+        from models import Plan, SimpleStep
         
         query = request.get("query", "Analyze data and send summary")
         file_path = request.get("file_path")
