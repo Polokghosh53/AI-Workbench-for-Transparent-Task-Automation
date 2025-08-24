@@ -9,4 +9,9 @@ openpyxl
 python-docx
 python-multipart
 portia-sdk-python
+# Database drivers
+psycopg2-binary
+mysql-connector-python
+# HTTP requests for CRM APIs
+requests
 # Note: portia-sdk-python installs the 'portia' module

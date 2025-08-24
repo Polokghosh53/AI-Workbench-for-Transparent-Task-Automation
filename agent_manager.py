@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from db import save_plan, get_plan_by_id, list_all_plans
 from tool_email import send_email
 from tool_data import fetch_and_summarize_data
+from tool_registry import get_tool_registry, get_portia_instance
 
 # Import models first
 from models import Plan, SimpleStep
@@ -31,7 +32,7 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 PORTIA_API_KEY = os.getenv('PORTIA_API_KEY')
 
-# Initialize Portia config if available
+# Initialize Portia config and tool registry if available
 if PORTIA_AVAILABLE:
     try:
         config = Config.from_default(
@@ -39,11 +40,18 @@ if PORTIA_AVAILABLE:
             default_model="gpt-4",
             openai_api_key=OPENAI_API_KEY,
         )
+        # Get the integrated tool registry with all database and CRM tools
+        integrated_registry = get_tool_registry()
+        portia_instance = get_portia_instance()
     except Exception:
         config = None
+        integrated_registry = None
+        portia_instance = None
         PORTIA_AVAILABLE = False
 else:
     config = None
+    integrated_registry = None
+    portia_instance = None
 
 def create_rich_email_body(data_result):
     """Create a rich, formatted email body from data analysis results"""
@@ -204,6 +212,59 @@ async def run_plan(request, user):
                 description="Generate sample sales data analysis with charts and statistics"
             )
         
+        # Add database integration if requested
+        if request.get("database_query"):
+            db_type = request.get("database_type", "sqlite")
+            plan_builder.step(
+                task=f"Execute database query on {db_type}",
+                tool_id=f"query_{db_type}_database",
+                output="database_results",
+                description=f"Query {db_type} database for additional context",
+                inputs=[
+                    {"name": "query", "value": request.get("database_query")},
+                    {"name": "params", "value": request.get("database_params", [])}
+                ]
+            )
+        
+        # Add CRM integration if requested
+        if request.get("crm_operation"):
+            crm_type = request.get("crm_type", "salesforce")
+            operation = request.get("crm_operation")
+            
+            if operation == "get_contacts":
+                plan_builder.step(
+                    task=f"Retrieve contacts from {crm_type}",
+                    tool_id=f"get_{crm_type}_contacts",
+                    output="crm_contacts",
+                    description=f"Fetch contact information from {crm_type} CRM",
+                    inputs=[
+                        {"name": "limit", "value": request.get("crm_limit", 10)},
+                        {"name": "search_term", "value": request.get("crm_search", None)}
+                    ]
+                )
+            elif operation == "create_lead" and crm_type == "salesforce":
+                plan_builder.step(
+                    task="Create new lead in Salesforce",
+                    tool_id="create_salesforce_lead",
+                    output="new_lead",
+                    description="Create a new lead based on data analysis",
+                    inputs=[
+                        {"name": "first_name", "value": request.get("lead_first_name", "")},
+                        {"name": "last_name", "value": request.get("lead_last_name", "")},
+                        {"name": "email", "value": request.get("lead_email", "")},
+                        {"name": "company", "value": request.get("lead_company", "")}
+                    ]
+                )
+        
+        # Add integration testing if requested
+        if request.get("test_integrations"):
+            plan_builder.step(
+                task="Test all integration connections",
+                tool_id="test_integrations",
+                output="integration_tests",
+                description="Verify connectivity to databases and CRM systems"
+            )
+        
         # Add clarification point for sensitive operations
         plan_builder.step(
             task="Review data analysis before sending",
@@ -274,6 +335,67 @@ async def run_plan(request, user):
             file_path = request.get("file_path")
             result = fetch_and_summarize_data(file_path=file_path)
             state.add_result(step.output, result)
+            
+        elif step.tool_id.startswith("query_") and step.tool_id.endswith("_database"):
+            # Handle database queries
+            if integrated_registry:
+                db_tool = integrated_registry.get_tool(step.tool_id)
+                if db_tool:
+                    query = next((input_["value"] for input_ in step.inputs if input_["name"] == "query"), "")
+                    params = next((input_["value"] for input_ in step.inputs if input_["name"] == "params"), [])
+                    result = db_tool(query=query, params=params) if params else db_tool(query=query)
+                    state.add_result(step.output, result)
+                else:
+                    state.add_result(step.output, {"error": f"Database tool {step.tool_id} not found"})
+            else:
+                state.add_result(step.output, {"error": "Database tools not available"})
+                
+        elif step.tool_id.startswith("get_") and ("salesforce" in step.tool_id or "hubspot" in step.tool_id or "zendesk" in step.tool_id):
+            # Handle CRM get operations
+            if integrated_registry:
+                crm_tool = integrated_registry.get_tool(step.tool_id)
+                if crm_tool:
+                    limit = next((input_["value"] for input_ in step.inputs if input_["name"] == "limit"), 10)
+                    search_term = next((input_["value"] for input_ in step.inputs if input_["name"] == "search_term"), None)
+                    result = crm_tool(limit=limit, search_term=search_term)
+                    state.add_result(step.output, result)
+                else:
+                    state.add_result(step.output, {"error": f"CRM tool {step.tool_id} not found"})
+            else:
+                state.add_result(step.output, {"error": "CRM tools not available"})
+                
+        elif step.tool_id.startswith("create_") and ("salesforce" in step.tool_id or "hubspot" in step.tool_id or "zendesk" in step.tool_id):
+            # Handle CRM create operations
+            if integrated_registry:
+                crm_tool = integrated_registry.get_tool(step.tool_id)
+                if crm_tool:
+                    # Extract inputs based on tool type
+                    if "salesforce_lead" in step.tool_id:
+                        result = crm_tool(
+                            first_name=next((input_["value"] for input_ in step.inputs if input_["name"] == "first_name"), ""),
+                            last_name=next((input_["value"] for input_ in step.inputs if input_["name"] == "last_name"), ""),
+                            email=next((input_["value"] for input_ in step.inputs if input_["name"] == "email"), ""),
+                            company=next((input_["value"] for input_ in step.inputs if input_["name"] == "company"), "")
+                        )
+                    else:
+                        result = {"error": f"Create operation for {step.tool_id} not implemented"}
+                    state.add_result(step.output, result)
+                else:
+                    state.add_result(step.output, {"error": f"CRM tool {step.tool_id} not found"})
+            else:
+                state.add_result(step.output, {"error": "CRM tools not available"})
+                
+        elif step.tool_id == "test_integrations":
+            # Handle integration testing
+            if integrated_registry:
+                test_tool = integrated_registry.get_tool("test_integrations")
+                if test_tool:
+                    result = test_tool()
+                    state.add_result(step.output, result)
+                else:
+                    state.add_result(step.output, {"error": "Integration test tool not found"})
+            else:
+                state.add_result(step.output, {"error": "Integration tools not available"})
             
         elif step.tool_id == "human_review_clarification":
             # Portia's clarification system for human input

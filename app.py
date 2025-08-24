@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from agent_manager import run_plan, get_plan, list_plans
 from auth import get_current_user
 from tool_data import data_processor
+from tool_registry import get_tool_registry
 from pathlib import Path
 from datetime import datetime
 import shutil
@@ -225,3 +226,196 @@ async def get_plan_history(user=Depends(get_current_user)):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch plan history: {str(e)}")
+
+@app.get("/integrations/")
+async def list_integrations_endpoint(user=Depends(get_current_user)):
+    """List all available integrations and their status"""
+    try:
+        registry = get_tool_registry()
+        return registry.list_available_integrations()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list integrations: {str(e)}")
+
+@app.post("/integrations/test/")
+async def test_integrations_endpoint(user=Depends(get_current_user)):
+    """Test all configured integrations"""
+    try:
+        registry = get_tool_registry()
+        return registry.test_all_connections()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to test integrations: {str(e)}")
+
+@app.post("/database/query/")
+async def query_database_endpoint(request: dict, user=Depends(get_current_user)):
+    """Execute a database query"""
+    try:
+        registry = get_tool_registry()
+        db_type = request.get("database_type", "sqlite")
+        query = request.get("query", "")
+        params = request.get("params", [])
+        
+        # Map database types to actual tool names (Portia changes function names)
+        db_tool_mapping = {
+            "postgres": "QueryPostgresDatabaseTool",
+            "mysql": "QueryMysqlDatabaseTool", 
+            "sqlite": "QuerySqliteDatabaseTool"
+        }
+        
+        tool_name = db_tool_mapping.get(db_type)
+        if not tool_name:
+            # Fallback to original naming for non-Portia tools
+            tool_name = f"query_{db_type}_database"
+            
+        db_tool = registry.get_tool(tool_name)
+        
+        if not db_tool:
+            raise HTTPException(status_code=400, detail=f"Database type '{db_type}' not supported")
+        
+        if not query:
+            raise HTTPException(status_code=400, detail="Query is required")
+        
+        # Use direct function calls that bypass Portia wrapper
+        from tool_direct_calls import direct_query_postgres_database, direct_query_mysql_database, direct_query_sqlite_database
+        
+        tool_functions = {
+            "postgres": direct_query_postgres_database,
+            "mysql": direct_query_mysql_database,
+            "sqlite": direct_query_sqlite_database
+        }
+        
+        tool_func = tool_functions.get(db_type)
+        if not tool_func:
+            raise HTTPException(status_code=400, detail=f"Database type '{db_type}' not supported")
+        
+        result = tool_func(query=query, params=params) if params else tool_func(query=query)
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database query failed: {str(e)}")
+
+@app.get("/database/schema/")
+async def get_database_schema_endpoint(
+    database_type: str, 
+    table_name: str = None, 
+    user=Depends(get_current_user)
+):
+    """Get database schema information"""
+    try:
+        registry = get_tool_registry()
+        schema_tool = registry.get_tool("GetDatabaseSchemaTool")
+        
+        if not schema_tool:
+            raise HTTPException(status_code=500, detail="Schema tool not available")
+        
+        # Use the direct function call
+        from tool_direct_calls import direct_get_database_schema
+        result = direct_get_database_schema(database_type=database_type, table_name=table_name)
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Schema query failed: {str(e)}")
+
+@app.get("/crm/{crm_type}/contacts/")
+async def get_crm_contacts_endpoint(
+    crm_type: str,
+    limit: int = 10,
+    search_term: str = None,
+    user=Depends(get_current_user)
+):
+    """Get contacts from CRM system"""
+    try:
+        registry = get_tool_registry()
+        # Map CRM types to actual tool names (Portia changes function names)
+        crm_tool_mapping = {
+            "salesforce": "GetSalesforceContactsTool",
+            "hubspot": "GetHubspotContactsTool",
+            "zendesk": "GetZendeskTicketsTool"
+        }
+        
+        tool_name = crm_tool_mapping.get(crm_type)
+        if not tool_name:
+            # Fallback to original naming
+            tool_name = f"get_{crm_type}_contacts"
+            
+        crm_tool = registry.get_tool(tool_name)
+        
+        if not crm_tool:
+            raise HTTPException(status_code=400, detail=f"CRM type '{crm_type}' not supported")
+        
+        # Use the original functions directly
+        from tool_crm import get_salesforce_contacts, get_hubspot_contacts, get_zendesk_tickets
+        
+        crm_functions = {
+            "salesforce": get_salesforce_contacts,
+            "hubspot": get_hubspot_contacts,
+            "zendesk": get_zendesk_tickets
+        }
+        
+        crm_func = crm_functions.get(crm_type)
+        if not crm_func:
+            raise HTTPException(status_code=400, detail=f"CRM type '{crm_type}' not supported")
+        
+        result = crm_func(limit=limit, search_term=search_term)
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"CRM query failed: {str(e)}")
+
+@app.post("/crm/salesforce/leads/")
+async def create_salesforce_lead_endpoint(request: dict, user=Depends(get_current_user)):
+    """Create a new lead in Salesforce"""
+    try:
+        registry = get_tool_registry()
+        lead_tool = registry.get_tool("CreateSalesforceLeadTool")
+        
+        if not lead_tool:
+            raise HTTPException(status_code=500, detail="Salesforce lead tool not available")
+        
+        required_fields = ["first_name", "last_name", "email", "company"]
+        for field in required_fields:
+            if not request.get(field):
+                raise HTTPException(status_code=400, detail=f"Field '{field}' is required")
+        
+        # Use the original function directly
+        from tool_crm import create_salesforce_lead
+        
+        result = create_salesforce_lead(
+            first_name=request["first_name"],
+            last_name=request["last_name"],
+            email=request["email"],
+            company=request["company"],
+            phone=request.get("phone"),
+            lead_source=request.get("lead_source")
+        )
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lead creation failed: {str(e)}")
+
+@app.post("/crm/hubspot/contacts/")
+async def create_hubspot_contact_endpoint(request: dict, user=Depends(get_current_user)):
+    """Create a new contact in HubSpot"""
+    try:
+        registry = get_tool_registry()
+        contact_tool = registry.get_tool("CreateHubspotContactTool")
+        
+        if not contact_tool:
+            raise HTTPException(status_code=500, detail="HubSpot contact tool not available")
+        
+        if not request.get("email"):
+            raise HTTPException(status_code=400, detail="Email is required")
+        
+        # Use the original function directly
+        from tool_crm import create_hubspot_contact
+        
+        result = create_hubspot_contact(
+            email=request["email"],
+            first_name=request.get("first_name"),
+            last_name=request.get("last_name"),
+            phone=request.get("phone"),
+            company=request.get("company")
+        )
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Contact creation failed: {str(e)}")

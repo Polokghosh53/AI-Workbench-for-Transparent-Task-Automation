@@ -5,6 +5,7 @@ import PlanDetails from "./PlanDetails";
 import FileUpload from "./FileUpload";
 import PlanPreview from "./PlanPreview";
 import PlanHistory from "./PlanHistory";
+import IntegrationManager from "./IntegrationManager";
 
 function PlanDashboard() {
   const [plans, setPlans] = useState([]);
@@ -16,6 +17,8 @@ function PlanDashboard() {
   const [uploadedData, setUploadedData] = useState(null);
   const [generatedPlan, setGeneratedPlan] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [showIntegrations, setShowIntegrations] = useState(false);
+  const [integrationParams, setIntegrationParams] = useState({});
 
   useEffect(() => {
     fetchPlans();
@@ -44,7 +47,8 @@ function PlanDashboard() {
     try {
       const requestData = { 
         query: input, 
-        to: email 
+        to: email,
+        ...integrationParams // Include integration parameters
       };
       
       // Include uploaded file path if available
@@ -69,6 +73,16 @@ function PlanDashboard() {
     // Auto-populate task description based on uploaded data
     if (data.summary && !input) {
       setInput(`Analyze and summarize the uploaded ${data.source_type || 'data'} file: ${data.original_filename}`);
+    }
+  };
+
+  const handleIntegrationSelect = (params) => {
+    setIntegrationParams(params);
+    // Auto-update the input based on selected integration
+    if (params.database_query) {
+      setInput(`Execute database query: ${params.database_query}`);
+    } else if (params.crm_operation) {
+      setInput(`CRM operation: ${params.crm_operation} from ${params.crm_type}`);
     }
   };
 
@@ -113,6 +127,12 @@ function PlanDashboard() {
           >
             {showHistory ? "Hide History" : "📚 View Plan History"}
           </button>
+          <button 
+            className="btn btn-secondary" 
+            onClick={() => setShowIntegrations(!showIntegrations)}
+          >
+            {showIntegrations ? "Hide Integrations" : "🔗 Manage Integrations"}
+          </button>
           {generatedPlan && (
             <div className="tag">✅ Plan Generated - Ready to Execute</div>
           )}
@@ -148,6 +168,11 @@ function PlanDashboard() {
       {/* Portia's Plan History with Rollback */}
       {showHistory && (
         <PlanHistory onPlanSelect={setSelectedPlanId} />
+      )}
+
+      {/* Integration Manager */}
+      {showIntegrations && (
+        <IntegrationManager onIntegrationSelect={handleIntegrationSelect} />
       )}
 
       {selectedPlanId && (
