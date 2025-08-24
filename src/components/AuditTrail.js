@@ -4,13 +4,13 @@ function AuditTrail({ results }) {
   const safeResults = Array.isArray(results) ? results : [];
   return (
     <div>
-      <h3>Audit Trail</h3>
+      <div className="section-title">Audit Trail</div>
       {safeResults.length === 0 ? (
-        <div>No results yet.</div>
+        <div className="subtle">No results yet.</div>
       ) : (
-        <ol>
+        <ol className="card-list">
           {safeResults.map((step, idx) => (
-            <li key={idx}>{JSON.stringify(step)}</li>
+            <li key={idx}><code className="subtle">{JSON.stringify(step)}</code></li>
           ))}
         </ol>
       )}

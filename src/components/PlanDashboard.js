@@ -49,60 +49,67 @@ function PlanDashboard() {
   };
 
   return (
-    <div>
-      <h2>Create Plan</h2>
-      <div>
-        <input
-          placeholder="Describe your task"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-        />
-      </div>
-      <div>
-        <input
-          placeholder="Recipient Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-      </div>
-      <div>
-        <h3>Plan Preview</h3>
-        <ol>
-          {planPreview.map((step, idx) => (
-            <li key={idx}>
-              {step.task} ({step.tool_id})
+    <div className="grid">
+      <section className="panel">
+        <div className="section-title">Create Plan</div>
+        <div className="row">
+          <input
+            className="input"
+            placeholder="Describe your task"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+          />
+          <input
+            className="input"
+            placeholder="Recipient Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+          />
+          <button className="btn" onClick={runPlan} disabled={isRunning || !email}>
+            {isRunning ? "Running..." : "Run"}
+          </button>
+        </div>
+      </section>
+
+      <section className="panel split">
+        <div>
+          <div className="section-title">Plan Preview</div>
+          <ol className="card-list">
+            {planPreview.map((step, idx) => (
+              <li key={idx}>{step.task} <span className="meta">({step.tool_id})</span></li>
+            ))}
+          </ol>
+        </div>
+        <div>
+          <div className="section-title">Latest Run</div>
+          {results && results.length > 0 ? (
+            <AuditTrail results={results} />
+          ) : (
+            <div className="subtle">No run yet.</div>
+          )}
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="section-title">Past Plans</div>
+        <ul className="card-list">
+          {plans.map((plan) => (
+            <li key={plan.plan?.id} className="row">
+              <span>{plan.plan?.id}</span>
+              <button className="btn" onClick={() => setSelectedPlanId(plan.plan?.id)} style={{ marginLeft: 8 }}>
+                View
+              </button>
             </li>
           ))}
-        </ol>
-      </div>
-      <button onClick={runPlan} disabled={isRunning || !email}>
-        {isRunning ? "Running..." : "Run"}
-      </button>
-
-      {results && results.length > 0 && (
-        <div>
-          <h2>Latest Run</h2>
-          <AuditTrail results={results} />
-        </div>
-      )}
-
-      <h2>Past Plans</h2>
-      <ul>
-        {plans.map((plan) => (
-          <li key={plan.plan?.id}>
-            {plan.plan?.id}
-            <button onClick={() => setSelectedPlanId(plan.plan?.id)} style={{ marginLeft: 8 }}>
-              View
-            </button>
-          </li>
-        ))}
-      </ul>
+        </ul>
+      </section>
 
       {selectedPlanId && (
-        <div>
-          <h2>Plan Details</h2>
+        <section className="panel">
+          <div className="section-title">Plan Details</div>
           <PlanDetails planId={selectedPlanId} />
-        </div>
+        </section>
       )}
     </div>
   );

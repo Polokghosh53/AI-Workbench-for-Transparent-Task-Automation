@@ -6,7 +6,16 @@ def save_plan(state):
 
 def get_plan_by_id(plan_id, user):
     state = plan_store.get(plan_id)
-    return state.__dict__ if state and state.plan.user["username"] == user["username"] else None
+    if not state:
+        return None
+    owner = None
+    try:
+        owner = state.plan.user["username"] if state.plan and getattr(state.plan, "user", None) else None
+    except Exception:
+        owner = None
+    if owner == user["username"] or getattr(state, "user", {}).get("username") == user["username"]:
+        return state.__dict__
+    return None
 
 def list_all_plans(user):
     results = []

@@ -1,13 +1,35 @@
 import os
 from dotenv import load_dotenv
-from portia.plan import PlanBuilder
-from portia.plan import Plan
-from portia.execution_agents.utils.final_output_summarizer import FinalOutputSummarizer
-from portia.config import Config
 from db import save_plan, get_plan_by_id, list_all_plans
 from tool_email import send_email
 from tool_data import fetch_and_summarize_data
-from portia import LLMProvider
+
+# Optional Portia imports with graceful fallback
+try:
+    from portia.plan import PlanBuilder
+    from portia.plan import Plan as PortiaPlan
+    from portia.execution_agents.utils.final_output_summarizer import FinalOutputSummarizer as PortiaFinalOutputSummarizer
+    from portia.config import Config
+    from portia import LLMProvider
+    PORTIA_AVAILABLE = True
+except Exception:
+    from models import Plan  # fallback Plan model
+    PORTIA_AVAILABLE = False
+
+    class PortiaFinalOutputSummarizer:  # type: ignore
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def create_summary(self, plan, plan_run):
+            # Basic fallback summary
+            return f"Plan {getattr(plan, 'id', 'unknown')} executed with {len(getattr(plan_run, 'results', []))} results."
+
+    class SimpleStep:
+        def __init__(self, task, tool_id, output, inputs=None):
+            self.task = task
+            self.tool_id = tool_id
+            self.output = output
+            self.inputs = inputs or []
 
 # Initialize Portia Config (can be customized)
 # Load environment variables from .env file
@@ -17,16 +39,18 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 PORTIA_API_KEY = os.getenv('PORTIA_API_KEY')
 
-# Initialize Portia Config with API keys and preferred LLM provider
-config = Config.from_default(
-    # Choose your preferred LLM provider (uncomment one)
-    llm_provider=LLMProvider.OPENAI,  # Default provider
-    default_model="openai/gpt-4.1",
-    openai_api_key=OPENAI_API_KEY,
-)
-
-# Since portia.memory.AgentMemory is not used, pass None or remove as needed
-final_output_summarizer = FinalOutputSummarizer(config, agent_memory=None)
+# Initialize summarizer based on availability
+if PORTIA_AVAILABLE:
+    # Initialize Portia Config with API keys and preferred LLM provider
+    config = Config.from_default(
+        llm_provider=LLMProvider.OPENAI,
+        default_model="openai/gpt-4.1",
+        openai_api_key=OPENAI_API_KEY,
+    )
+    final_output_summarizer = PortiaFinalOutputSummarizer(config, agent_memory=None)
+else:
+    config = None
+    final_output_summarizer = PortiaFinalOutputSummarizer()
 
 class ExecutionState:
     """Custom execution state tracking results by output ID."""
@@ -45,27 +69,50 @@ class ExecutionState:
         return None
 
 async def run_plan(request, user):
-    # Build the plan using Portia PlanBuilder
-    plan_builder = PlanBuilder(query=request.get("query", "Default query"))
-
-    plan_builder.step(
-        task="Fetch and summarize sales data",
-        tool_id="fetch_and_summarize_data",
-        output="data_summary"
-    )
-
-    plan_builder.step(
-        task="Send sales summary email",
-        tool_id="send_email",
-        output="email_status",
-        inputs=[
-            {"name": "to", "value": request["to"]},
-            {"name": "subject", "value": "Sales Summary"},
-            {"name": "body", "value": "${data_summary}"}
+    # Build the plan
+    if PORTIA_AVAILABLE:
+        plan_builder = PlanBuilder(query=request.get("query", "Default query"))
+        plan_builder.step(
+            task="Fetch and summarize sales data",
+            tool_id="fetch_and_summarize_data",
+            output="data_summary"
+        )
+        plan_builder.step(
+            task="Send sales summary email",
+            tool_id="send_email",
+            output="email_status",
+            inputs=[
+                {"name": "to", "value": request["to"]},
+                {"name": "subject", "value": "Sales Summary"},
+                {"name": "body", "value": "${data_summary}"}
+            ]
+        )
+        plan = plan_builder.build()
+    else:
+        # Fallback plan without Portia
+        steps = [
+            SimpleStep(
+                task="Fetch and summarize sales data",
+                tool_id="fetch_and_summarize_data",
+                output="data_summary",
+            ),
+            SimpleStep(
+                task="Send sales summary email",
+                tool_id="send_email",
+                output="email_status",
+                inputs=[
+                    {"name": "to", "value": request["to"]},
+                    {"name": "subject", "value": "Sales Summary"},
+                    {"name": "body", "value": "${data_summary}"},
+                ],
+            ),
         ]
-    )
-
-    plan = plan_builder.build()
+        plan = Plan(steps=steps, user=user)
+    # Attach user to plan for downstream filtering/serialization
+    try:
+        setattr(plan, "user", user)
+    except Exception:
+        pass
 
     # Initialize custom state tracker with current user for ownership filtering
     state = ExecutionState(plan, user=user)
