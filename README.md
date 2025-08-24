@@ -292,6 +292,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Project Repository**: [Add your GitHub URL here]
 - **Live Demo**: [Add demo URL if available]
 
+## Contributors Involved
+Users itself 😊, OpenAI, Perplexity AI, & Cursor
+
 ---
 
 **Built with ❤️ using Portia AI for transparent, secure, and controllable task automation.**
