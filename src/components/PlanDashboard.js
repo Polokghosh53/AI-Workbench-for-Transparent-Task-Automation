@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import apiClient from "../api/client";
 import AuditTrail from "./AuditTrail";
 import PlanDetails from "./PlanDetails";
+import FileUpload from "./FileUpload";
+import PlanPreview from "./PlanPreview";
+import PlanHistory from "./PlanHistory";
 
 function PlanDashboard() {
   const [plans, setPlans] = useState([]);
@@ -10,6 +13,9 @@ function PlanDashboard() {
   const [results, setResults] = useState(null);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [isRunning, setIsRunning] = useState(false);
+  const [uploadedData, setUploadedData] = useState(null);
+  const [generatedPlan, setGeneratedPlan] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     fetchPlans();
@@ -36,26 +42,46 @@ function PlanDashboard() {
   const runPlan = async () => {
     setIsRunning(true);
     try {
-      const res = await apiClient.post(
-        "/run-plan/",
-        { query: input, to: email }
-      );
+      const requestData = { 
+        query: input, 
+        to: email 
+      };
+      
+      // Include uploaded file path if available
+      if (uploadedData && uploadedData.upload_id) {
+        requestData.file_path = `uploads/${uploadedData.upload_id}`;
+      }
+      
+      const res = await apiClient.post("/run-plan/", requestData);
       setResults(res.data?.results || []);
       await fetchPlans();
       setSelectedPlanId(res.data?.plan_id || "");
+    } catch (error) {
+      console.error("Plan execution failed:", error);
+      setResults([{ error: error.response?.data?.detail || "Plan execution failed" }]);
     } finally {
       setIsRunning(false);
     }
   };
 
+  const handleUploadSuccess = (data) => {
+    setUploadedData(data);
+    // Auto-populate task description based on uploaded data
+    if (data.summary && !input) {
+      setInput(`Analyze and summarize the uploaded ${data.source_type || 'data'} file: ${data.original_filename}`);
+    }
+  };
+
   return (
     <div className="grid">
+      <FileUpload onUploadSuccess={handleUploadSuccess} />
+      
       <section className="panel">
-        <div className="section-title">Create Plan</div>
+        <div className="section-title">🚀 Portia AI Enhanced Task Creation</div>
         <div className="row">
           <input
             className="input"
-            placeholder="Describe your task"
+            placeholder="Describe your task (e.g., 'Analyze sales data and email summary')"
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
@@ -66,48 +92,67 @@ function PlanDashboard() {
             onChange={(e) => setEmail(e.target.value)}
             type="email"
           />
-          <button className="btn" onClick={runPlan} disabled={isRunning || !email}>
-            {isRunning ? "Running..." : "Run"}
+          <button className="btn" onClick={runPlan} disabled={isRunning || !email || !generatedPlan}>
+            {isRunning ? "🔄 Executing Plan..." : "▶️ Execute Plan"}
           </button>
+        </div>
+        
+        {uploadedData && (
+          <div className="upload-summary">
+            <div className="tag">📊 Data Ready</div>
+            <span className="subtle">
+              {uploadedData.original_filename} ({uploadedData.statistics?.total_rows || 'N/A'} rows)
+            </span>
+          </div>
+        )}
+        
+        <div className="row" style={{ marginTop: '12px' }}>
+          <button 
+            className="btn-secondary" 
+            onClick={() => setShowHistory(!showHistory)}
+          >
+            {showHistory ? "Hide History" : "📚 View Plan History"}
+          </button>
+          {generatedPlan && (
+            <div className="tag">✅ Plan Generated - Ready to Execute</div>
+          )}
         </div>
       </section>
 
+      {/* Portia's Structured Plan Preview */}
+      <PlanPreview 
+        query={input} 
+        uploadedData={uploadedData}
+        onPlanGenerated={setGeneratedPlan}
+      />
+
       <section className="panel split">
         <div>
-          <div className="section-title">Plan Preview</div>
+          <div className="section-title">🎯 Execution Results</div>
+          {results && results.length > 0 ? (
+            <AuditTrail results={results} />
+          ) : (
+            <div className="subtle">Execute a plan to see detailed results here.</div>
+          )}
+        </div>
+        <div>
+          <div className="section-title">📋 Legacy Plan Preview</div>
           <ol className="card-list">
             {planPreview.map((step, idx) => (
               <li key={idx}>{step.task} <span className="meta">({step.tool_id})</span></li>
             ))}
           </ol>
         </div>
-        <div>
-          <div className="section-title">Latest Run</div>
-          {results && results.length > 0 ? (
-            <AuditTrail results={results} />
-          ) : (
-            <div className="subtle">No run yet.</div>
-          )}
-        </div>
       </section>
 
-      <section className="panel">
-        <div className="section-title">Past Plans</div>
-        <ul className="card-list">
-          {plans.map((plan) => (
-            <li key={plan.plan?.id} className="row">
-              <span>{plan.plan?.id}</span>
-              <button className="btn" onClick={() => setSelectedPlanId(plan.plan?.id)} style={{ marginLeft: 8 }}>
-                View
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {/* Portia's Plan History with Rollback */}
+      {showHistory && (
+        <PlanHistory onPlanSelect={setSelectedPlanId} />
+      )}
 
       {selectedPlanId && (
         <section className="panel">
-          <div className="section-title">Plan Details</div>
+          <div className="section-title">🔍 Plan Details</div>
           <PlanDetails planId={selectedPlanId} />
         </section>
       )}

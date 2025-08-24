@@ -1,3 +1,11 @@
 fastapi
 uvicorn
 python-dotenv
+pandas
+numpy
+matplotlib
+seaborn
+openpyxl
+python-docx
+python-multipart
+portia-sdk-python
